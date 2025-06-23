@@ -3,8 +3,8 @@
 This project is variant of the [selenium-side-runner](https://github.com/SeleniumHQ/selenium-ide/tree/v3/packages/selenium-side-runner) for running tests against the browserstack grid. 
 
 ```sh
-npm install @maxmattone/browserstack-side-runner
-npx @maxmattone/browserstack-side-runner test.side
+npm install @browserstackce/browserstack-side-runner
+npx @browserstackce/browserstack-side-runner test.side
 ```
 Don't forget to use the config file `browserstack.yml` like so:
 ```yml
