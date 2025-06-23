@@ -1,12 +1,12 @@
 {
-  "name": "@maxmattone/browserstack-side-runner",
+  "name": "@BrowserStackCE/browserstack-side-runner",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mattonem/browserstack-side-runner.git"
+    "url": "git+https://github.com/BrowserStackCE/browserstack-side-runner.git"
   },
   "version": "2.2.0",
   "main": "index.mjs",
-  "homepage": "https://github.com/mattonem/browserstack-side-runner#readme",
+  "homepage": "https://github.com/BrowserStackCE/browserstack-side-runner#readme",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
