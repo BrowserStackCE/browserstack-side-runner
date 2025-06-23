@@ -2,6 +2,9 @@
 # For more information see: https://help.github.com/actions/language-and-framework-guides/publishing-nodejs-packages
 
 name: Publish release
+permissions:
+  contents: read
+  packages: write
 
 on:
   release:
