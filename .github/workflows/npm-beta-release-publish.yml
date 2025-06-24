@@ -3,15 +3,11 @@
 
 name: Publish beta release
 
-permissions:
-  contents: read
-
 on:
   release:
     types: [prereleased]
 
 jobs:
-
   publish-npm:
     runs-on: ubuntu-latest
     steps:
@@ -23,4 +19,4 @@ jobs:
       - run: npm i
       - run: npm publish --access public --tag beta
         env:
-          NODE_AUTH_TOKEN: ${{secrets.npm_token}}
+          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
