@@ -10,8 +10,10 @@ import commander from 'commander';
 import logger from 'cli-logger';
 import glob from 'glob';
 import spawn from 'cross-spawn';
-import * as dotenv from 'dotenv'; 
+import * as dotenv from 'dotenv';
 import { exit } from 'process';
+import sanitize from 'sanitize-filename';
+
 dotenv.config();
 commander
   .usage('[options] project.side [project.side] [*.side]')
@@ -19,9 +21,9 @@ commander
   .option('-f, --filter <grep regex>', 'Run tests matching name')
   .option('--base-url <url>', 'Override the base URL that was set in the IDE')
   .option('--test-timeout <ms>', 'Timeout value for each tests (default: 30000)')
-  .option('--browserstack.config <path>','path to browserstack config file, default to browserstack.yml')
+  .option('--browserstack.config <path>', 'path to browserstack config file, default to browserstack.yml')
   .option('--output-format <json|xunit>', 'Format for the output file.')
-  .option('--output-file <path>','path for the report file. required if --output-format provided')
+  .option('--output-file <path>', 'path for the report file. required if --output-format provided')
 
 commander.parse(process.argv);
 const options = commander.opts();
@@ -29,7 +31,7 @@ options.testTimeout = options.testTimeout ? options.testTimeout : 30000
 options.filter = options.filter ? options.filter : ''
 options.browserstackConfig = options['browserstack.config'] ? options['browserstack.config'] : 'browserstack.yml'
 options.buildFolderPath = '_generated'
-var conf = {level: options.debug ? logger.DEBUG :logger.INFO};
+var conf = { level: options.debug ? logger.DEBUG : logger.INFO };
 var log = logger(conf);
 
 const sideFiles = [
@@ -49,7 +51,7 @@ function readFile(filename) {
     fs.readFileSync(
       path.join(
         '.',
-        filename
+        sanitize(filename)
       )
     )
   )
@@ -64,13 +66,10 @@ function normalizeProject(project) {
   return _project
 }
 
-for(const sideFileName of sideFiles)
-{
+for (const sideFileName of sideFiles) {
   const project = normalizeProject(readFile(sideFileName))
-  for(const aSuite of project.suites)
-  {
-    for(const aTestCase of aSuite.tests)
-    {
+  for (const aSuite of project.suites) {
+    for (const aTestCase of aSuite.tests) {
       const test = project.tests.find(test => test.name === aTestCase);
       var results = await codeExport.default.emit.test({
         baseUrl: options.baseUrl ? options.baseUrl : project.url,
@@ -78,7 +77,7 @@ for(const sideFileName of sideFiles)
         tests: project.tests,
         project: project
       })
-      fs.writeFileSync( path.join(
+      fs.writeFileSync(path.join(
         options.buildFolderPath,
         results.filename
       ), results.body);
@@ -88,13 +87,12 @@ for(const sideFileName of sideFiles)
 }
 
 var reporter = []
-if(options.outputFormat && options.outputFile)
-  reporter = [ '--reporter', options.outputFormat, '--reporter-options', 'output=' + options.outputFile]
+if (options.outputFormat && options.outputFile)
+  reporter = ['--reporter', options.outputFormat, '--reporter-options', 'output=' + options.outputFile]
 
 const testSuiteProcess = spawn.sync('npx', ['browserstack-node-sdk', 'mocha', '_generated', '--timeouts', options.testTimeout, '-g', options.filter, '--browserstack.config', options.browserstackConfig, ...reporter], { stdio: 'inherit', env: { ...process.env, testTimeout: options.testTimeout } });
 
-if(!options.debug)
-{
+if (!options.debug) {
   rimraf.sync(options.buildFolderPath)
 }
 exit(testSuiteProcess.status)
