@@ -1,3 +1,4 @@
 node_modules/
 package-lock.json
 semgrep.sarif
+.DS_Store
