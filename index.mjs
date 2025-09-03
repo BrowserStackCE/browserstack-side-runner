@@ -1,18 +1,19 @@
 #!/usr/bin/env node
 
 import fs from 'fs'
-import rimraf from "rimraf";
+import { rimrafSync } from "rimraf";
 import path from 'path'
 import codeExport from './browserstack-mocha-export.mjs'
 import { project as projectProcessor } from '@seleniumhq/side-code-export'
 import pkg from '@seleniumhq/side-utils';
 import commander from 'commander';
 import logger from 'cli-logger';
-import glob from 'glob';
+import { globSync } from 'glob';
 import spawn from 'cross-spawn';
 import * as dotenv from 'dotenv';
 import { exit } from 'process';
 import sanitize from 'sanitize-filename';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
 commander
@@ -36,14 +37,14 @@ var log = logger(conf);
 
 const sideFiles = [
   ...commander.args.reduce((projects, project) => {
-    glob.sync(project).forEach(p => {
+    globSync(project).forEach(p => {
       projects.add(p)
     })
     return projects
   }, new Set()),
 ];
 
-rimraf.sync(options.buildFolderPath)
+rimrafSync(options.buildFolderPath)
 fs.mkdirSync(options.buildFolderPath);
 
 function readFile(filename) {
@@ -90,9 +91,20 @@ var reporter = []
 if (options.outputFormat && options.outputFile)
   reporter = ['--reporter', options.outputFormat, '--reporter-options', 'output=' + options.outputFile]
 
-const testSuiteProcess = spawn.sync('npx', ['browserstack-node-sdk', 'mocha', '_generated', '--timeouts', options.testTimeout, '-g', options.filter, '--browserstack.config', options.browserstackConfig, ...reporter], { stdio: 'inherit', env: { ...process.env, testTimeout: options.testTimeout } });
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const browserstackSdkPath = path.join(__dirname, 'node_modules', '.bin', 'browserstack-node-sdk');
+const sideRunnerNodeModules = path.join(__dirname, 'node_modules');
+
+const testSuiteProcess = spawn.sync(browserstackSdkPath, ['mocha', '_generated', '--timeouts', options.testTimeout, '-g', options.filter, '--browserstack.config', options.browserstackConfig, ...reporter], { 
+  stdio: 'inherit', 
+  env: { 
+    ...process.env, 
+    testTimeout: options.testTimeout,
+    NODE_PATH: `${sideRunnerNodeModules}${path.delimiter}${process.env.NODE_PATH || ''}`
+  } 
+});
 
 if (!options.debug) {
-  rimraf.sync(options.buildFolderPath)
+  rimrafSync(options.buildFolderPath)
 }
 exit(testSuiteProcess.status)
