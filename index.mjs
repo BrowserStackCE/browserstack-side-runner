@@ -12,7 +12,6 @@ import { globSync } from 'glob';
 import spawn from 'cross-spawn';
 import * as dotenv from 'dotenv';
 import { exit } from 'process';
-import sanitize from 'sanitize-filename';
 import { fileURLToPath } from 'url';
 
 dotenv.config();
@@ -48,15 +47,29 @@ rimrafSync(options.buildFolderPath)
 fs.mkdirSync(options.buildFolderPath);
 
 function readFile(filename) {
-  // Resolve absolute and relative paths correctly and avoid sanitizing directory separators.
-  const resolved = path.isAbsolute(filename)
-    ? filename
-    : path.resolve(process.cwd(), filename)
-  // Only sanitize the filename itself, preserving the original directory.
-  const dir = path.dirname(resolved)
-  const base = sanitize(path.basename(resolved))
-  const finalPath = path.join(dir, base)
-  return JSON.parse(fs.readFileSync(finalPath, 'utf8'))
+  if (typeof filename !== 'string' || filename.length === 0) {
+    throw new Error('Invalid filename')
+  }
+  if (path.extname(filename) !== '.side') {
+    throw new Error('Only .side files are allowed')
+  }
+
+  const cwd = process.cwd()
+  const absolutePath = path.isAbsolute(filename)
+    ? path.normalize(filename)
+    : path.resolve(cwd, filename) // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal — extension validated and path contained to cwd below
+
+  // Containment check: ensure the resolved path is inside cwd
+  const rel = path.relative(cwd, absolutePath)
+  if (rel.startsWith('..') || path.isAbsolute(rel)) {
+    throw new Error('Access outside the working directory is not allowed')
+  }
+
+  if (!fs.existsSync(absolutePath) || !fs.statSync(absolutePath).isFile()) {
+    throw new Error('Target file does not exist or is not a regular file')
+  }
+
+  return JSON.parse(fs.readFileSync(absolutePath, 'utf8'))
 }
 
 function normalizeProject(project) {
