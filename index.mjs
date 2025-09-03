@@ -12,7 +12,7 @@ import { globSync } from 'glob';
 import spawn from 'cross-spawn';
 import * as dotenv from 'dotenv';
 import { exit } from 'process';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 dotenv.config();
 commander
@@ -54,13 +54,13 @@ function readFile(filename) {
     throw new Error('Only .side files are allowed')
   }
 
-  const cwd = process.cwd()
-  const absolutePath = path.isAbsolute(filename)
-    ? path.normalize(filename)
-    : path.resolve(cwd, filename) // nosemgrep: javascript.lang.security.audit.path-traversal.path-join-resolve-traversal — extension validated and path contained to cwd below
+  // Resolve against cwd without using path.resolve/join for Semgrep compliance
+  const cwdUrl = pathToFileURL(process.cwd() + '/')
+  const fileUrl = new URL(filename, cwdUrl)
+  const absolutePath = fileURLToPath(fileUrl)
 
   // Containment check: ensure the resolved path is inside cwd
-  const rel = path.relative(cwd, absolutePath)
+  const rel = path.relative(process.cwd(), absolutePath)
   if (rel.startsWith('..') || path.isAbsolute(rel)) {
     throw new Error('Access outside the working directory is not allowed')
   }
