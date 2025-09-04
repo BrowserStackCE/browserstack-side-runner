@@ -4,7 +4,7 @@
     "type": "git",
     "url": "git+https://github.com/BrowserStackCE/browserstack-side-runner.git"
   },
-  "version": "2.3.0",
+  "version": "2.4.0",
   "main": "index.mjs",
   "homepage": "https://github.com/BrowserStackCE/browserstack-side-runner#readme",
   "scripts": {

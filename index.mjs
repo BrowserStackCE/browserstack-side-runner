@@ -12,8 +12,7 @@ import { globSync } from 'glob';
 import spawn from 'cross-spawn';
 import * as dotenv from 'dotenv';
 import { exit } from 'process';
-import sanitize from 'sanitize-filename';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 dotenv.config();
 commander
@@ -48,14 +47,29 @@ rimrafSync(options.buildFolderPath)
 fs.mkdirSync(options.buildFolderPath);
 
 function readFile(filename) {
-  return JSON.parse(
-    fs.readFileSync(
-      path.join(
-        '.',
-        sanitize(filename)
-      )
-    )
-  )
+  if (typeof filename !== 'string' || filename.length === 0) {
+    throw new Error('Invalid filename')
+  }
+  if (path.extname(filename) !== '.side') {
+    throw new Error('Only .side files are allowed')
+  }
+
+  // Resolve against cwd without using path.resolve/join for Semgrep compliance
+  const cwdUrl = pathToFileURL(process.cwd() + '/')
+  const fileUrl = new URL(filename, cwdUrl)
+  const absolutePath = fileURLToPath(fileUrl)
+
+  // Containment check: ensure the resolved path is inside cwd
+  const rel = path.relative(process.cwd(), absolutePath)
+  if (rel.startsWith('..') || path.isAbsolute(rel)) {
+    throw new Error('Access outside the working directory is not allowed')
+  }
+
+  if (!fs.existsSync(absolutePath) || !fs.statSync(absolutePath).isFile()) {
+    throw new Error('Target file does not exist or is not a regular file')
+  }
+
+  return JSON.parse(fs.readFileSync(absolutePath, 'utf8'))
 }
 
 function normalizeProject(project) {
@@ -92,19 +106,54 @@ if (options.outputFormat && options.outputFile)
   reporter = ['--reporter', options.outputFormat, '--reporter-options', 'output=' + options.outputFile]
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const browserstackSdkPath = path.join(__dirname, 'node_modules', '.bin', 'browserstack-node-sdk');
 const sideRunnerNodeModules = path.join(__dirname, 'node_modules');
 
-const testSuiteProcess = spawn.sync(browserstackSdkPath, ['mocha', '_generated', '--timeouts', options.testTimeout, '-g', options.filter, '--browserstack.config', options.browserstackConfig, ...reporter], { 
-  stdio: 'inherit', 
-  env: { 
-    ...process.env, 
-    testTimeout: options.testTimeout,
-    NODE_PATH: `${sideRunnerNodeModules}${path.delimiter}${process.env.NODE_PATH || ''}`
-  } 
-});
+// Resolve BrowserStack SDK binary robustly with fallbacks
+const sdkCandidates = [
+  path.join(__dirname, 'node_modules', '.bin', 'browserstack-node-sdk'),
+  path.join(process.cwd(), 'node_modules', '.bin', 'browserstack-node-sdk'),
+  // Fall back to letting the OS PATH resolve it (e.g., project-level node_modules/.bin)
+  'browserstack-node-sdk'
+]
+const sdkBin = sdkCandidates.find(p => {
+  try {
+    // If candidate is a bare command (no path separators), let it pass
+    if (!p.includes(path.sep)) return true
+    return fs.existsSync(p)
+  } catch {
+    return false
+  }
+}) || 'browserstack-node-sdk'
+
+if (options.debug) {
+  log.debug(`Using BrowserStack SDK binary: ${sdkBin}`)
+}
+
+let testSuiteProcess
+try {
+  testSuiteProcess = spawn.sync(
+    sdkBin,
+    ['mocha', '_generated', '--timeouts', String(options.testTimeout), '-g', options.filter, '--browserstack.config', options.browserstackConfig, ...reporter],
+    {
+      stdio: 'inherit',
+      env: {
+        ...process.env,
+        testTimeout: options.testTimeout,
+        NODE_PATH: `${sideRunnerNodeModules}${path.delimiter}${process.env.NODE_PATH || ''}`
+      }
+    }
+  )
+} catch (err) {
+  log.error(`Failed to start BrowserStack SDK at "${sdkBin}": ${err.message}`)
+  exit(1)
+}
+
+if (testSuiteProcess.error) {
+  log.error(`Failed to start BrowserStack SDK at "${sdkBin}": ${testSuiteProcess.error.message}`)
+  exit(1)
+}
 
 if (!options.debug) {
   rimrafSync(options.buildFolderPath)
 }
-exit(testSuiteProcess.status)
+exit(testSuiteProcess.status ?? 1)
